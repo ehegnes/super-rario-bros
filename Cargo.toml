@@ -3,7 +3,7 @@
 name = "super-rario-bros"
 version = "0.0.1"
 authors = ["Eric Hegnes <eric.hegnes@gmail.com>",
-           "Siddhanathan Shanmugam <siddhanathan@gmail.com"]
+           "Siddhanathan Shanmugam <siddhanathan@gmail.com>"]
 
 [dependencies.sdl2]
 git = "https://github.com/AngryLawyer/rust-sdl2"
