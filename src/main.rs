@@ -156,8 +156,10 @@ fn main() {
     // Load World and Mario sprites
     let world = load_image("res/world1-1.bmp", &renderer);
     let mut mario = Sprite::new("res/mario-walking-right.bmp", &renderer);
-    mario.set_x(0);
     mario.set_y(WIN_Y-GROUND_OFFSET-TILE_SIZE);
+
+    let mut sprites: Vec<Sprite> = Vec::new();
+    sprites.push(mario);
 
     // Generate Rects to be drawn on map
     let world_rects_overlay = load_map("res/world1-1.txt", &renderer);
@@ -170,7 +172,7 @@ fn main() {
     let mut drawer = renderer.drawer();
     let _ = drawer.clear();
     let _ = drawer.copy(&world, None, None);
-    let _ = drawer.copy(mario.texture(), None, Some(mario.rect()));
+    let _ = drawer.copy(sprites[0].texture(), None, Some(sprites[0].rect()));
     let _ = drawer.present();
 
     // Initialize rate limiter
@@ -185,11 +187,11 @@ fn main() {
 
         // Keyboard input
         let kb_state = get_keyboard_state();
-        if kb_state[&ScanCode::Left]  { mario.move_dir(-1); }
-        if kb_state[&ScanCode::Right] { mario.move_dir( 1); }
+        if kb_state[&ScanCode::Left]  { sprites[0].move_dir(-1); }
+        if kb_state[&ScanCode::Right] { sprites[0].move_dir( 1); }
 
         // Background scrolling
-        scroll_background(&mut x_back, &mut mario);
+        scroll_background(&mut x_back, &mut sprites[0]);
 
         // X and Y collision handling
         // TODO: This needs revision. The method arrays need to be properly initialized as well.
@@ -199,28 +201,28 @@ fn main() {
         for (count, (f1, f2)) in f1fn.iter().zip(f2fn.iter()).enumerate() {
             let mut dir;
             if (count+1) % 2 == 0 { dir = "x"; } else { dir = "y"; }
-            f1(&mut mario, dir);
+            f1(&mut sprites[0], dir);
             for rect in &*world_rects {
                 let rect = rect.unwrap();
                 let rect = Rect::new(rect.x - x_back, rect.y, TILE_SIZE, TILE_SIZE);
-                if rect.has_intersection(&mario.rect()) {
-                    let coll_rect = rect.intersection(&mario.rect()).unwrap();
-                    f2(&mut mario, dir, coll_rect);
+                if rect.has_intersection(&sprites[0].rect()) {
+                    let coll_rect = rect.intersection(&sprites[0].rect()).unwrap();
+                    f2(&mut sprites[0], dir, coll_rect);
                     break;
                 }
             }
         }
 
         // Process jumping
-        if kb_state[&ScanCode::Up] { mario.jump(); }
+        if kb_state[&ScanCode::Up] { sprites[0].jump(); }
 
         // TODO: update() should eventually be mapped to a list containing all Sprites
-        mario.update(kb_state);
+        sprites[0].update(kb_state);
 
         drawer.clear();
         drawer.copy(&world,               Some(Rect::new(x_back, 0, WIN_X, WIN_Y)), None);
         drawer.copy(&world_rects_overlay, Some(Rect::new(x_back, 0, WIN_X, WIN_Y)), None);
-        drawer.copy(mario.texture(), None, Some(mario.rect()));
+        drawer.copy(sprites[0].texture(), None, Some(sprites[0].rect()));
         drawer.present();
     }
 }
