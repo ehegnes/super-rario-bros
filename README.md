@@ -3,6 +3,8 @@ Super Rario Bros
 
 A Super Mario Bros. clone, written in Rust, using SDL2.
 
+**PR's are very much welcome! :)**
+
 **NOTE:** This code is still in development. It is borne out of an interest in
 learning Rust, not necessarily because we're game developers or Mario
 enthusiasts.
@@ -16,12 +18,12 @@ The 'Rario' part is because it's written in Rust. Bask in our glorious wittiness
 
 ###TODO
 - Improve collision handling
-    - It would be nice to have this threaded, but we'd have to work around not
-      being able to copy a number of resources to the other thread(s), and it
-      might just not be worth it.
-    - Hopefully trait objects and heterogeneous containers can be used to extend
-      this to work on multiple objects of the same trait (look at
-      'trait-refactor' branch)
+    - It would be nice to have some threaded code, but we'd have to work around
+      not being able to copy a number of resources to the other thread(s), and
+      it might just not be worth it.
+    - <del>Hopefully trait objects and heterogeneous containers can be used to
+      extend this to work on multiple objects of the same trait (look at
+      'trait-refactor' branch)</del>
 - <del>Track texture dimensions in the appropriate sprite struct so as to setup
   for future soft stretching and stop hardcoding values</del>
     - Texture.query() provides access to dimensions via the TextureQuery struct
@@ -32,7 +34,10 @@ The 'Rario' part is because it's written in Rust. Bask in our glorious wittiness
         - Enemies must be initialized as they are encountered by Mario, not at
           the program initializaiton
         - Figure out how we want to implement the basic AI for each enemy
-            - Enemies should inherit the Sprite struct, maybe encapsulated
+            - <del>Enemies should inherit the Sprite struct, maybe
+              encapsulated</del>
+            - It is more favorable, for now, to override the necessary
+              trait-implemented methods for each different enemy.
 - Movement:
     - Change maximum jump height based on the length of time for which the jump
       button is held and the speed of Mario

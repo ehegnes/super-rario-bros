@@ -1,4 +1,3 @@
-#![feature(core)]
 extern crate sdl2;
 
 use sdl2::{INIT_VIDEO, INIT_EVENTS};
@@ -13,7 +12,7 @@ use sdl2::video::{Window, OPENGL};
 use sdl2::video::WindowPos::PosCentered;
 
 use std::collections::HashMap;
-use std::num::{Float, ToPrimitive};
+use std::env;
 use std::path::Path;
 
 type ScanCodes = HashMap<ScanCode, bool>;
@@ -46,8 +45,14 @@ trait Sprite {
     fn set_vx(&mut self, vx: f32);
     fn set_vy(&mut self, vy: f32);
     fn jump(&mut self);
-    fn move_dir(&mut self, dir: i32);
     fn update(&mut self, kb_state: ScanCodes);
+    fn move_dir(&mut self, dir: i32) {
+        let vx = self.vx();
+        self.set_vx(vx + (dir as f32) * 0.02);
+        let max_speed = 1.0;
+        if vx > max_speed  { self.set_vx(max_speed); }
+        if vx < -max_speed { self.set_vx(-max_speed); }
+    }
     fn handle_coll(&mut self, dir: &str, coll_rect: Rect) {
         let vx = self.vx();
         let vy = self.vy();
@@ -79,6 +84,81 @@ trait Sprite {
     }
 }
 
+struct Enemy<'renderer> {
+    texture: Texture<'renderer>,
+    x: f32,
+    y: f32,
+    vx: f32,
+    vy: f32,
+    falling: bool,
+}
+
+impl<'renderer> Enemy<'renderer> {
+    fn new(path: &str, renderer: &'renderer Renderer) -> Enemy<'renderer> {
+        Enemy {
+            texture: load_image(path, renderer),
+            x: 0.0,
+            y: 0.0,
+            vx: 0.0,
+            vy: 0.0,
+            falling: false,
+        }
+    }
+}
+
+impl<'renderer> Sprite for Enemy<'renderer> {
+    fn texture(&self) -> &Texture { &self.texture }
+    fn rect(&self) -> Rect { Rect::new(self.x as i32, self.y as i32, TILE_SIZE, TILE_SIZE) }
+    fn x(&self) -> f32                 { self.x }
+    fn vx(&self) -> f32                { self.vx }
+    #[allow(dead_code)]
+    fn y(&self) -> f32                 { self.y }
+    fn vy(&self) -> f32                { self.vy }
+    fn falling(&self) -> bool          { self.falling }
+    fn set_x(&mut self, x: f32)        { self.x = x; }
+    fn set_y(&mut self, y: f32)        { self.y = y; }
+    fn set_vx(&mut self, vx: f32)      { self.vx = vx; }
+    fn set_vy(&mut self, vy: f32)      { self.vy = vy; }
+    fn set_falling(&mut self, f: bool) { self.falling = f; }
+    fn jump(&mut self) {
+        if !self.falling { self.vy = -3.4; self.falling = true; }
+    }
+    fn handle_coll(&mut self, dir: &str, coll_rect: Rect) {
+        let vx = self.vx();
+        let vy = self.vy();
+        if dir == "x" { // bounce back and forth between objects
+            self.set_vx(-vx);
+        } else if dir == "y" && self.falling() {
+            if vy > 0.0 { // moving downward
+                self.set_y((coll_rect.y-TILE_SIZE) as f32);
+                self.set_falling(false);
+            } else { // moving upward
+                self.set_y((coll_rect.y+coll_rect.h) as f32);
+            }
+            self.set_vy(0.0);
+        }
+    }
+    fn update(&mut self, kb_state: ScanCodes) {
+        // Friction
+        //if !(kb_state[&ScanCode::Left] || kb_state[&ScanCode::Right] || self.falling) {
+            //self.vx -= 0.2;
+            //if self.vx.abs_sub(0.2) < 0.2 {
+                //self.vx = 0.0;
+            //}
+        //}
+
+        // bounds checking
+        //if (self.x as i32) < 0               { self.set_x(0.0); self.set_vx(0.0); }
+        //if (self.x as i32) > WIN_X-TILE_SIZE { self.set_x((WIN_X-TILE_SIZE) as f32); }
+
+        // Reset self.falling
+        self.falling = true;
+
+        // GAME OVER!
+        //if self.y as i32 > WIN_Y { panic!("GAME OVER!"); }
+    }
+}
+
 struct Mario<'renderer> {
     texture: Texture<'renderer>,
     x: f32,
@@ -104,29 +184,20 @@ impl<'renderer> Mario<'renderer> {
 impl<'renderer> Sprite for Mario<'renderer> {
     fn texture(&self) -> &Texture { &self.texture }
     fn rect(&self) -> Rect { Rect::new(self.x as i32, self.y as i32, TILE_SIZE, TILE_SIZE) }
-
-    // Setter and getter functions for internal variables
-    fn x(&self) -> f32      { self.x }
-    fn vx(&self) -> f32         { self.vx }
+    fn x(&self) -> f32                 { self.x }
+    fn vx(&self) -> f32                { self.vx }
     #[allow(dead_code)]
-    fn y(&self) -> f32      { self.y }
-    fn vy(&self) -> f32         { self.vy }
-    fn falling(&self) -> bool { self.falling }
-    fn set_x(&mut self, x: f32)   { self.x = x; }
-    fn set_y(&mut self, y: f32)   { self.y = y; }
-    fn set_vx(&mut self, vx: f32) { self.vx = vx; }
-    fn set_vy(&mut self, vy: f32) { self.vy = vy; }
-    fn set_falling(&mut self, f: bool){ self.falling = f; }
-
-    // Auxillary functions
-    fn jump(&mut self) { if !self.falling { self.vy = -3.4; self.falling = true; }}
-    fn move_dir(&mut self, dir: i32) {
-        self.vx += (dir.to_f32().unwrap())*0.02;
-        let max_speed = 1.0;
-        if self.vx > max_speed { self.vx = max_speed; }
-        if self.vx < -max_speed { self.vx = -max_speed; }
+    fn y(&self) -> f32                 { self.y }
+    fn vy(&self) -> f32                { self.vy }
+    fn falling(&self) -> bool          { self.falling }
+    fn set_x(&mut self, x: f32)        { self.x = x; }
+    fn set_y(&mut self, y: f32)        { self.y = y; }
+    fn set_vx(&mut self, vx: f32)      { self.vx = vx; }
+    fn set_vy(&mut self, vy: f32)      { self.vy = vy; }
+    fn set_falling(&mut self, f: bool) { self.falling = f; }
+    fn jump(&mut self) {
+        if !self.falling { self.vy = -3.4; self.falling = true; }
     }
-
     fn update(&mut self, kb_state: ScanCodes) {
         // Friction
         if !(kb_state[&ScanCode::Left] || kb_state[&ScanCode::Right] || self.falling) {
@@ -135,6 +206,7 @@ impl<'renderer> Sprite for Mario<'renderer> {
                 self.vx = 0.0;
             }
         }
+
 
         // bounds checking
         if (self.x as i32) < 0               { self.set_x(0.0); self.set_vx(0.0); }
@@ -161,15 +233,15 @@ fn load_map<'renderer>(filename: &str, renderer: &'renderer Renderer) -> Texture
     renderer.create_texture_from_surface(&surface).unwrap()
 }
 
-fn scroll_background(x_back: &mut i32, mario: &mut Sprite) {
+fn scroll_background(x_back: &mut f32, mario: &mut Sprite) {
     if mario.x() > 80.0 {
-        *x_back += mario.x() as i32 - 80;
+        *x_back += mario.x() - 80.0;
         mario.set_x(80.0);
     }
 
     // Bounds checking
-    if *x_back < 0          { *x_back = 0 }
-    if *x_back > 3392-WIN_X { *x_back = 3392-WIN_X }
+    if *x_back < 0.0                 { *x_back = 0.0; }
+    if *x_back > (3392-WIN_X) as f32 { *x_back = (3392-WIN_X) as f32; }
 }
 
 fn main() {
@@ -186,16 +258,20 @@ fn main() {
     let world = load_image("res/world1-1.bmp", &renderer);
     let mut mario = Mario::new("res/mario-walking-right.bmp", &renderer);
     mario.set_y((WIN_Y-GROUND_OFFSET-TILE_SIZE) as f32);
+    let mut enemy = Enemy::new("res/mario-death.bmp", &renderer);
+    enemy.set_x(100.0);
+    enemy.move_dir(-20);
 
     let mut sprites: Vec<&mut Sprite> = Vec::new();
     sprites.push(&mut mario as &mut Sprite);
+    sprites.push(&mut enemy as &mut Sprite);
 
     // Generate Rects to be drawn on map
     let world_rects_overlay = load_map("res/world1-1.txt", &renderer);
     let world_rects = map_to_rects("res/world1-1.txt");
 
     // Track the background x-axis scrolling
-    let mut x_back = 0;
+    let mut x_back = 0.0;
 
     // Initialize drawer
     let mut drawer = renderer.drawer();
@@ -223,14 +299,15 @@ fn main() {
         scroll_background(&mut x_back, &mut *sprites[0]);
 
         // X and Y collision handling
-        // TODO: This needs revision. The method arrays need to be properly initialized as well.
-        //       Look in the 'trait-refactor' branch for current work on this subject.
+        // TODO: Consider revision, specifically the way in which the 'x' and 'y' strings are
+        //       passed to `move_mutate()` and `handle_coll()`. Is this the best way to handle x
+        //       and y collision separately?
         for dir in ["x", "y"].iter() {
             for sprite in sprites.iter_mut() {
                 sprite.move_mutate(dir);
                 for rect in &*world_rects {
                     let rect = rect.unwrap();
-                    let rect = Rect::new(rect.x - x_back, rect.y, TILE_SIZE, TILE_SIZE);
+                    let rect = Rect::new(rect.x - (x_back as i32), rect.y, TILE_SIZE, TILE_SIZE);
                     if rect.has_intersection(&sprite.rect()) {
                         let coll_rect = rect.intersection(&sprite.rect()).unwrap();
                         sprite.handle_coll(dir, coll_rect);
@@ -243,12 +320,21 @@ fn main() {
         // Process jumping
         if kb_state[&ScanCode::Up] { sprites[0].jump(); }
 
-        // TODO: update() should eventually be mapped to a list containing all Sprites
         sprites[0].update(kb_state);
+        for sprite in sprites.iter_mut().skip(1) { sprite.set_falling(true); }
 
         drawer.clear();
-        drawer.copy(&world,               Some(Rect::new(x_back, 0, WIN_X, WIN_Y)), None);
-        drawer.copy(&world_rects_overlay, Some(Rect::new(x_back, 0, WIN_X, WIN_Y)), None);
+        drawer.copy(&world,               Some(Rect::new(x_back as i32, 0, WIN_X, WIN_Y)), None);
+        drawer.copy(&world_rects_overlay, Some(Rect::new(x_back as i32, 0, WIN_X, WIN_Y)), None);
+        for sprite in sprites.iter_mut().skip(1) {
+            match env::var_os("AI") {
+                Some(_) => {
+                    let dest_rect = Rect::new((sprite.x()- x_back) as i32, sprite.rect().y, TILE_SIZE, TILE_SIZE);
+                    drawer.copy(sprite.texture(), None, Some(dest_rect));
+                },
+                None => { drawer.copy(sprite.texture(), None, Some(sprite.rect())); }
+            }
+        }
         drawer.copy(sprites[0].texture(), None, Some(sprites[0].rect()));
         drawer.present();
     }
