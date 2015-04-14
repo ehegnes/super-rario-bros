@@ -84,8 +84,8 @@ trait Sprite {
     }
 }
 
-struct Enemy<'renderer> {
-    texture: Texture<'renderer>,
+struct Enemy {
+    texture: Texture,
     x: f32,
     y: f32,
     vx: f32,
@@ -93,8 +93,8 @@ struct Enemy<'renderer> {
     falling: bool,
 }
 
-impl<'renderer> Enemy<'renderer> {
-    fn new(path: &str, renderer: &'renderer Renderer) -> Enemy<'renderer> {
+impl Enemy {
+    fn new(path: &str, renderer: &Renderer) -> Enemy {
         Enemy {
             texture: load_image(path, renderer),
             x: 0.0,
@@ -106,7 +106,7 @@ impl<'renderer> Enemy<'renderer> {
     }
 }
 
-impl<'renderer> Sprite for Enemy<'renderer> {
+impl Sprite for Enemy {
     fn texture(&self) -> &Texture { &self.texture }
     fn rect(&self) -> Rect { Rect::new(self.x as i32, self.y as i32, TILE_SIZE, TILE_SIZE) }
     fn x(&self) -> f32                 { self.x }
@@ -159,8 +159,8 @@ impl<'renderer> Sprite for Enemy<'renderer> {
     }
 }
 
-struct Mario<'renderer> {
-    texture: Texture<'renderer>,
+struct Mario {
+    texture: Texture,
     x: f32,
     y: f32,
     vx: f32,
@@ -168,8 +168,8 @@ struct Mario<'renderer> {
     falling: bool,
 }
 
-impl<'renderer> Mario<'renderer> {
-    fn new(path: &str, renderer: &'renderer Renderer) -> Mario<'renderer> {
+impl Mario {
+    fn new(path: &str, renderer: &Renderer) -> Mario {
         Mario {
             texture: load_image(path, renderer),
             x: 0.0,
@@ -181,7 +181,7 @@ impl<'renderer> Mario<'renderer> {
     }
 }
 
-impl<'renderer> Sprite for Mario<'renderer> {
+impl Sprite for Mario {
     fn texture(&self) -> &Texture { &self.texture }
     fn rect(&self) -> Rect { Rect::new(self.x as i32, self.y as i32, TILE_SIZE, TILE_SIZE) }
     fn x(&self) -> f32                 { self.x }
@@ -220,28 +220,31 @@ impl<'renderer> Sprite for Mario<'renderer> {
     }
 }
 
-fn load_image<'renderer>(filename: &str, renderer: &'renderer Renderer) -> Texture<'renderer> {
+fn load_image(filename: &str, renderer: &Renderer) -> Texture {
     let surface = Surface::from_bmp(Path::new(filename)).unwrap();
     surface.set_color_key(true, RGB(255, 0, 255)).unwrap();
     renderer.create_texture_from_surface(&surface).unwrap()
 }
 
-fn load_map<'renderer>(filename: &str, renderer: &'renderer Renderer) -> Texture<'renderer> {
+fn load_map(filename: &str, renderer: &Renderer) -> Texture {
     let map = map_to_rects(filename);
     let mut surface: Surface = Surface::from_bmp(Path::new("res/world1-1.bmp")).unwrap();
     surface.fill_rects(&map, RGB(0, 0, 0)).unwrap();
     renderer.create_texture_from_surface(&surface).unwrap()
 }
 
-fn scroll_background(x_back: &mut f32, mario: &mut Sprite) {
-    if mario.x() > 80.0 {
-        *x_back += mario.x() - 80.0;
+fn scroll_background(x_back: &mut f32, mario: &mut Sprite) -> f32 {
+    let result = mario.x() - 80.0;
+    if result > 0.0 {
+        *x_back += result;
         mario.set_x(80.0);
     }
 
     // Bounds checking
     if *x_back < 0.0                 { *x_back = 0.0; }
     if *x_back > (3392-WIN_X) as f32 { *x_back = (3392-WIN_X) as f32; }
+
+    if result > 0.0 { result } else { 0.0 }
 }
 
 fn main() {
@@ -249,10 +252,10 @@ fn main() {
     let sdl2_context = sdl2::init(INIT_VIDEO | INIT_EVENTS).unwrap();
 
     // Create main window
-    let window = Window::new(NAME, PosCentered, PosCentered, WIN_X, WIN_Y, OPENGL).unwrap();
+    let window = Window::new(&sdl2_context, NAME, PosCentered, PosCentered, WIN_X, WIN_Y, OPENGL).unwrap();
 
     // Initialize the renderer
-    let renderer = Renderer::from_window(window, RenderDriverIndex::Auto, ACCELERATED).unwrap();
+    let mut renderer = Renderer::from_window(window, RenderDriverIndex::Auto, ACCELERATED).unwrap();
 
     // Load World and Mario sprites
     let world = load_image("res/world1-1.bmp", &renderer);
@@ -271,7 +274,7 @@ fn main() {
     let world_rects = map_to_rects("res/world1-1.txt");
 
     // Track the background x-axis scrolling
-    let mut x_back = 0.0;
+    let mut x_back = 0f32;
 
     // Initialize drawer
     let mut drawer = renderer.drawer();
@@ -296,7 +299,7 @@ fn main() {
         if kb_state[&ScanCode::Right] { sprites[0].move_dir( 1); }
 
         // Background scrolling
-        scroll_background(&mut x_back, &mut *sprites[0]);
+        let offset = scroll_background(&mut x_back, &mut *sprites[0]);
 
         // X and Y collision handling
         // TODO: Consider revision, specifically the way in which the 'x' and 'y' strings are
@@ -323,18 +326,22 @@ fn main() {
         sprites[0].update(kb_state);
         for sprite in sprites.iter_mut().skip(1) { sprite.set_falling(true); }
 
+        // Begin drawing
         drawer.clear();
         drawer.copy(&world,               Some(Rect::new(x_back as i32, 0, WIN_X, WIN_Y)), None);
         drawer.copy(&world_rects_overlay, Some(Rect::new(x_back as i32, 0, WIN_X, WIN_Y)), None);
+        println!("offset: {}", offset);
+        // Draw all sprites except for Mario
         for sprite in sprites.iter_mut().skip(1) {
             match env::var_os("AI") {
                 Some(_) => {
-                    let dest_rect = Rect::new((sprite.x()- x_back) as i32, sprite.rect().y, TILE_SIZE, TILE_SIZE);
+                    let dest_rect = Rect::new((sprite.x() - offset - 20) as i32, sprite.rect().y, TILE_SIZE, TILE_SIZE);
                     drawer.copy(sprite.texture(), None, Some(dest_rect));
                 },
                 None => { drawer.copy(sprite.texture(), None, Some(sprite.rect())); }
             }
         }
+        // Draw our beloved Mario
         drawer.copy(sprites[0].texture(), None, Some(sprites[0].rect()));
         drawer.present();
     }
