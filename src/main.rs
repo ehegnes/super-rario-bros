@@ -12,7 +12,6 @@ use sdl2::video::{Window, OPENGL};
 use sdl2::video::WindowPos::PosCentered;
 
 use std::collections::HashMap;
-use std::env;
 use std::path::Path;
 
 type ScanCodes = HashMap<ScanCode, bool>;
@@ -84,8 +83,8 @@ trait Sprite {
     }
 }
 
-struct Enemy<'renderer> {
-    texture: Texture<'renderer>,
+struct Enemy {
+    texture: Texture,
     x: f32,
     y: f32,
     vx: f32,
@@ -93,8 +92,8 @@ struct Enemy<'renderer> {
     falling: bool,
 }
 
-impl<'renderer> Enemy<'renderer> {
-    fn new(path: &str, renderer: &'renderer Renderer) -> Enemy<'renderer> {
+impl Enemy {
+    fn new(path: &str, renderer: &Renderer) -> Enemy {
         Enemy {
             texture: load_image(path, renderer),
             x: 0.0,
@@ -106,7 +105,7 @@ impl<'renderer> Enemy<'renderer> {
     }
 }
 
-impl<'renderer> Sprite for Enemy<'renderer> {
+impl Sprite for Enemy {
     fn texture(&self) -> &Texture { &self.texture }
     fn rect(&self) -> Rect { Rect::new(self.x as i32, self.y as i32, TILE_SIZE, TILE_SIZE) }
     fn x(&self) -> f32                 { self.x }
@@ -126,41 +125,32 @@ impl<'renderer> Sprite for Enemy<'renderer> {
     fn handle_coll(&mut self, dir: &str, coll_rect: Rect) {
         let vx = self.vx();
         let vy = self.vy();
-        if dir == "x" { // bounce back and forth between objects
-            self.set_vx(-vx);
+        if dir == "x" {
+            if vx.is_sign_negative() { // collision on right of sprite
+                self.set_x((coll_rect.x + coll_rect.w) as f32);
+            } else { // collision on left of sprite
+                self.set_x((coll_rect.x - TILE_SIZE) as f32);
+            }
+            self.set_vx(-vx); // bounce back and forth between objects
         } else if dir == "y" && self.falling() {
             if vy > 0.0 { // moving downward
-                self.set_y((coll_rect.y-TILE_SIZE) as f32);
+                self.set_y((coll_rect.y - TILE_SIZE) as f32);
                 self.set_falling(false);
             } else { // moving upward
-                self.set_y((coll_rect.y+coll_rect.h) as f32);
+                self.set_y((coll_rect.y + coll_rect.h) as f32);
             }
             self.set_vy(0.0);
         }
     }
+    #[allow(unused_variables)]
     fn update(&mut self, kb_state: ScanCodes) {
-        // Friction
-        //if !(kb_state[&ScanCode::Left] || kb_state[&ScanCode::Right] || self.falling) {
-            //self.vx -= 0.2;
-            //if self.vx.abs_sub(0.2) < 0.2 {
-                //self.vx = 0.0;
-            //}
-        //}
-
-        // bounds checking
-        //if (self.x as i32) < 0               { self.set_x(0.0); self.set_vx(0.0); }
-        //if (self.x as i32) > WIN_X-TILE_SIZE { self.set_x((WIN_X-TILE_SIZE) as f32); }
-
         // Reset self.falling
         self.falling = true;
-
-        // GAME OVER!
-        //if self.y as i32 > WIN_Y { panic!("GAME OVER!"); }
     }
 }
 
-struct Mario<'renderer> {
-    texture: Texture<'renderer>,
+struct Mario {
+    texture: Texture,
     x: f32,
     y: f32,
     vx: f32,
@@ -168,8 +158,8 @@ struct Mario<'renderer> {
     falling: bool,
 }
 
-impl<'renderer> Mario<'renderer> {
-    fn new(path: &str, renderer: &'renderer Renderer) -> Mario<'renderer> {
+impl Mario {
+    fn new(path: &str, renderer: &Renderer) -> Mario {
         Mario {
             texture: load_image(path, renderer),
             x: 0.0,
@@ -181,7 +171,7 @@ impl<'renderer> Mario<'renderer> {
     }
 }
 
-impl<'renderer> Sprite for Mario<'renderer> {
+impl Sprite for Mario {
     fn texture(&self) -> &Texture { &self.texture }
     fn rect(&self) -> Rect { Rect::new(self.x as i32, self.y as i32, TILE_SIZE, TILE_SIZE) }
     fn x(&self) -> f32                 { self.x }
@@ -206,38 +196,41 @@ impl<'renderer> Sprite for Mario<'renderer> {
                 self.vx = 0.0;
             }
         }
-
-
         // bounds checking
         if (self.x as i32) < 0               { self.set_x(0.0); self.set_vx(0.0); }
         if (self.x as i32) > WIN_X-TILE_SIZE { self.set_x((WIN_X-TILE_SIZE) as f32); }
-
         // Reset self.falling
         self.falling = true;
-
         // GAME OVER!
         if self.y as i32 > WIN_Y { panic!("GAME OVER!"); }
     }
 }
 
-fn load_image<'renderer>(filename: &str, renderer: &'renderer Renderer) -> Texture<'renderer> {
+fn load_image(filename: &str, renderer: &Renderer) -> Texture {
     let surface = Surface::from_bmp(Path::new(filename)).unwrap();
     surface.set_color_key(true, RGB(255, 0, 255)).unwrap();
     renderer.create_texture_from_surface(&surface).unwrap()
 }
 
-fn load_map<'renderer>(filename: &str, renderer: &'renderer Renderer) -> Texture<'renderer> {
+fn load_map(filename: &str, renderer: &Renderer) -> Texture {
     let map = map_to_rects(filename);
     let mut surface: Surface = Surface::from_bmp(Path::new("res/world1-1.bmp")).unwrap();
     surface.fill_rects(&map, RGB(0, 0, 0)).unwrap();
     renderer.create_texture_from_surface(&surface).unwrap()
 }
 
-fn scroll_background(x_back: &mut f32, mario: &mut Sprite) {
-    if mario.x() > 80.0 {
-        *x_back += mario.x() - 80.0;
-        mario.set_x(80.0);
+fn scroll_background(x_back: &mut f32, sprites: &mut Vec<&mut Sprite>) {
+    let result = sprites[0].x() - 80.0;
+    if result > 0.0 {
+        *x_back += result;
+        sprites[0].set_x(80.0);
+        // Move sprite backwards when scrolling background forwards
+        for sprite in sprites.iter_mut().skip(1) {
+            let x = sprite.x();
+            sprite.set_x(x - result);
+        }
     }
+
 
     // Bounds checking
     if *x_back < 0.0                 { *x_back = 0.0; }
@@ -249,10 +242,10 @@ fn main() {
     let sdl2_context = sdl2::init(INIT_VIDEO | INIT_EVENTS).unwrap();
 
     // Create main window
-    let window = Window::new(NAME, PosCentered, PosCentered, WIN_X, WIN_Y, OPENGL).unwrap();
+    let window = Window::new(&sdl2_context, NAME, PosCentered, PosCentered, WIN_X, WIN_Y, OPENGL).unwrap();
 
     // Initialize the renderer
-    let renderer = Renderer::from_window(window, RenderDriverIndex::Auto, ACCELERATED).unwrap();
+    let mut renderer = Renderer::from_window(window, RenderDriverIndex::Auto, ACCELERATED).unwrap();
 
     // Load World and Mario sprites
     let world = load_image("res/world1-1.bmp", &renderer);
@@ -271,13 +264,13 @@ fn main() {
     let world_rects = map_to_rects("res/world1-1.txt");
 
     // Track the background x-axis scrolling
-    let mut x_back = 0.0;
+    let mut x_back = 0f32;
 
     // Initialize drawer
     let mut drawer = renderer.drawer();
     let _ = drawer.clear();
     let _ = drawer.copy(&world, None, None);
-    let _ = drawer.copy((*sprites[0]).texture(), None, Some((*sprites[0]).rect()));
+    let _ = drawer.copy(sprites[0].texture(), None, Some(sprites[0].rect()));
     let _ = drawer.present();
 
     // Initialize rate limiter
@@ -296,7 +289,7 @@ fn main() {
         if kb_state[&ScanCode::Right] { sprites[0].move_dir( 1); }
 
         // Background scrolling
-        scroll_background(&mut x_back, &mut *sprites[0]);
+        scroll_background(&mut x_back, &mut sprites);
 
         // X and Y collision handling
         // TODO: Consider revision, specifically the way in which the 'x' and 'y' strings are
@@ -320,22 +313,19 @@ fn main() {
         // Process jumping
         if kb_state[&ScanCode::Up] { sprites[0].jump(); }
 
+        // TODO: Consolidate this as a single loop (or map/closure) spanning all sprites
         sprites[0].update(kb_state);
         for sprite in sprites.iter_mut().skip(1) { sprite.set_falling(true); }
 
+        // Begin drawing
         drawer.clear();
         drawer.copy(&world,               Some(Rect::new(x_back as i32, 0, WIN_X, WIN_Y)), None);
         drawer.copy(&world_rects_overlay, Some(Rect::new(x_back as i32, 0, WIN_X, WIN_Y)), None);
-        for sprite in sprites.iter_mut().skip(1) {
-            match env::var_os("AI") {
-                Some(_) => {
-                    let dest_rect = Rect::new((sprite.x()- x_back) as i32, sprite.rect().y, TILE_SIZE, TILE_SIZE);
-                    drawer.copy(sprite.texture(), None, Some(dest_rect));
-                },
-                None => { drawer.copy(sprite.texture(), None, Some(sprite.rect())); }
-            }
+        // Draw all sprites
+        // TODO: Skip the drawing of sprites that are offscreen
+        for sprite in sprites.iter_mut().rev() {
+            drawer.copy(sprite.texture(), None, Some(sprite.rect()));
         }
-        drawer.copy(sprites[0].texture(), None, Some(sprites[0].rect()));
         drawer.present();
     }
 }

@@ -45,6 +45,8 @@ The 'Rario' part is because it's written in Rust. Bask in our glorious wittiness
       original game uses
 - Perform soft stretching (using `blit_scaled()` so that we may make the game
   window larger)
+    - This requires refactoring all code that includes `TILE_SIZE`, which is
+      assumed to be 16 pixels at the standard NES resolution.
 
 ### Map Parsing - Text to Tiles (Custom Parsing)
 World 1-1:
