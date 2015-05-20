@@ -1,13 +1,9 @@
 extern crate sdl2;
 
-use sdl2::{INIT_VIDEO, INIT_EVENTS};
 use sdl2::event::Event;
 use sdl2::keyboard::get_keyboard_state;
 use sdl2::rect::Rect;
-use sdl2::render::{Renderer, RenderDriverIndex, ACCELERATED};
 use sdl2::scancode::ScanCode;
-use sdl2::video::{Window, OPENGL};
-use sdl2::video::WindowPos::PosCentered;
 
 use std::collections::HashMap;
 
@@ -48,13 +44,16 @@ fn scroll_background(x_back: &mut f32, sprites: &mut Vec<&mut Sprite>) {
 
 fn main() {
     // Initialize SDL2 subsystems
-    let sdl2_context = sdl2::init(INIT_VIDEO | INIT_EVENTS).unwrap();
+    //let sdl2_context = sdl2::init(INIT_VIDEO | INIT_EVENTS).unwrap();
+    let sdl2_context = sdl2::init().video().events().unwrap();
 
     // Create main window
-    let window = Window::new(&sdl2_context, NAME, PosCentered, PosCentered, WIN_X, WIN_Y, OPENGL).unwrap();
+    //let window = Window::new(&sdl2_context, NAME, PosCentered, PosCentered, WIN_X, WIN_Y).unwrap();
+    let window = sdl2_context.window(NAME, WIN_X as u32, WIN_Y as u32).position_centered().opengl().build().unwrap();
 
     // Initialize the renderer
-    let mut renderer = Renderer::from_window(window, RenderDriverIndex::Auto, ACCELERATED).unwrap();
+    //let mut renderer = Renderer::from_window(window, RenderDriverIndex::Auto, ACCELERATED).unwrap();
+    let mut renderer = window.renderer().build().unwrap();
 
     // Load World and Mario sprites
     let world = load_image("res/world1-1.bmp", &renderer);
